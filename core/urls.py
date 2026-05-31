@@ -3,7 +3,12 @@ from django.urls import path
 from .views import (
     LoginView, LogoutView, MeView,
     DashboardKPIView, VentesParMoisView,
-    VentesParProduitView, VentesParCategorieView
+    VentesParProduitView, VentesParCategorieView,
+    CategorieListView,
+    ProduitListView, ProduitDetailView,
+    VenteListView, VenteDetailView,
+    ImportVentesView,
+    PrevisionView, PrevisionHistoriqueView,
 )
 
 urlpatterns = [
@@ -12,8 +17,23 @@ urlpatterns = [
     path('auth/me/',      MeView.as_view(),     name='me'),
 
     # Dashboard
-    path('dashboard/kpis/',       DashboardKPIView.as_view(),       name='kpis'),
-    path('dashboard/ventes-mois/', VentesParMoisView.as_view(),     name='ventes-mois'),
-    path('dashboard/ventes-produit/', VentesParProduitView.as_view(), name='ventes-produit'),
-    path('dashboard/ventes-categorie/', VentesParCategorieView.as_view(), name='ventes-categorie'),
+    path('dashboard/kpis/',             DashboardKPIView.as_view()),
+    path('dashboard/ventes-mois/',      VentesParMoisView.as_view()),
+    path('dashboard/ventes-produit/',   VentesParProduitView.as_view()),
+    path('dashboard/ventes-categorie/', VentesParCategorieView.as_view()),
+
+    # Catégories
+    path('categories/',         CategorieListView.as_view()),
+
+    # Produits
+    path('produits/',           ProduitListView.as_view()),
+    path('produits/<int:pk>/',  ProduitDetailView.as_view()),
+
+    # Ventes
+    path('ventes/',             VenteListView.as_view()),
+    path('ventes/<int:pk>/',    VenteDetailView.as_view()),
+    path('ventes/import/',      ImportVentesView.as_view()),
+
+    path('previsions/generer/',     PrevisionView.as_view()),
+    path('previsions/historique/',  PrevisionHistoriqueView.as_view()),
 ]
