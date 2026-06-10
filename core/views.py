@@ -11,12 +11,16 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.db.models import Sum, Count, Max
 from django.db.models.functions import TruncMonth
 from .models import Vente, Produit, User
-from .serializers import (LoginSerializer, UserSerializer, 
-                          CategorieSerializer, ProduitSerializer, VenteSerializer)
+from .serializers import (LoginSerializer, UserSerializer,
+                          CategorieSerializer, ProduitSerializer,
+                          VenteSerializer, UserCreateSerializer)
 from .models import Vente, Produit, User, Categorie, Prevision
 import pandas as pd
 from rest_framework import status
 from .services.prevision import generer_prevision
+from django.http import HttpResponse
+from .services.rapport import generer_rapport_pdf
+from datetime import date
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -60,35 +64,32 @@ class DashboardKPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Chiffre d'affaires total
-        ca_total = Vente.objects.aggregate(total=Sum('chiffre_affaires'))['total'] or 0
+        # Filtrer selon le rôle
+        if request.user.role == 'commercial':
+            ventes_qs = Vente.objects.filter(commercial=request.user)
+        else:
+            ventes_qs = Vente.objects.all()
 
-        # Nombre total de ventes
-        nb_ventes = Vente.objects.count()
+        ca_total  = ventes_qs.aggregate(total=Sum('chiffre_affaires'))['total'] or 0
+        nb_ventes = ventes_qs.count()
 
-        # Meilleur produit (par CA)
         meilleur_produit = (
-            Vente.objects
-            .values('produit__nom')
+            ventes_qs.values('produit__nom')
             .annotate(ca=Sum('chiffre_affaires'))
-            .order_by('-ca')
-            .first()
+            .order_by('-ca').first()
         )
 
-        # Meilleur commercial (par CA)
         meilleur_commercial = (
-            Vente.objects
-            .values('commercial__username')
+            Vente.objects.values('commercial__username')
             .annotate(ca=Sum('chiffre_affaires'))
-            .order_by('-ca')
-            .first()
-        )
+            .order_by('-ca').first()
+        ) if request.user.role != 'commercial' else None
 
         return Response({
-            'ca_total': round(ca_total, 2),
-            'nb_ventes': nb_ventes,
-            'meilleur_produit': meilleur_produit['produit__nom'] if meilleur_produit else 'N/A',
-            'meilleur_commercial': meilleur_commercial['commercial__username'] if meilleur_commercial else 'N/A',
+            'ca_total':           round(ca_total, 2),
+            'nb_ventes':          nb_ventes,
+            'meilleur_produit':   meilleur_produit['produit__nom'] if meilleur_produit else 'N/A',
+            'meilleur_commercial': meilleur_commercial['commercial__username'] if meilleur_commercial else request.user.username,
         })
 
 
@@ -96,38 +97,40 @@ class VentesParMoisView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        data = (
-            Vente.objects
-            .annotate(mois=TruncMonth('date_vente'))
-            .values('mois')
-            .annotate(ca=Sum('chiffre_affaires'), nb=Count('id'))
-            .order_by('mois')
-        )
-        return Response([
-            {
-                'mois': item['mois'].strftime('%b %Y'),
-                'ca': round(item['ca'], 2),
-                'nb': item['nb']
-            }
-            for item in data
-        ])
+        if request.user.role == 'commercial':
+            qs = Vente.objects.filter(commercial=request.user)
+        else:
+            qs = Vente.objects.all()
+
+        data = (qs.annotate(mois=TruncMonth('date_vente'))
+                  .values('mois')
+                  .annotate(ca=Sum('chiffre_affaires'), nb=Count('id'))
+                  .order_by('mois'))
+
+        return Response([{
+            'mois': item['mois'].strftime('%b %Y'),
+            'ca':   round(item['ca'], 2),
+            'nb':   item['nb']
+        } for item in data])
 
 
 class VentesParProduitView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        data = (
-            Vente.objects
-            .values('produit__nom')
-            .annotate(ca=Sum('chiffre_affaires'))
-            .order_by('-ca')[:8]
-        )
-        return Response([
-            {'produit': item['produit__nom'], 'ca': round(item['ca'], 2)}
-            for item in data
-        ])
+        if request.user.role == 'commercial':
+            qs = Vente.objects.filter(commercial=request.user)
+        else:
+            qs = Vente.objects.all()
 
+        data = (qs.values('produit__nom')
+                  .annotate(ca=Sum('chiffre_affaires'))
+                  .order_by('-ca')[:8])
+
+        return Response([{
+            'produit': item['produit__nom'],
+            'ca':      round(item['ca'], 2)
+        } for item in data])
 
 class VentesParCategorieView(APIView):
     permission_classes = [IsAuthenticated]
@@ -216,11 +219,18 @@ class VenteListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        ventes = Vente.objects.select_related('produit', 'commercial').all().order_by('-date_vente')
+        if request.user.role == 'commercial':
+            ventes = Vente.objects.filter(commercial=request.user).select_related('produit', 'commercial').order_by('-date_vente')
+        else:
+            ventes = Vente.objects.select_related('produit', 'commercial').all().order_by('-date_vente')
         return Response(VenteSerializer(ventes, many=True).data)
 
     def post(self, request):
-        s = VenteSerializer(data=request.data)
+        data = request.data.copy()
+        # Le commercial est automatiquement assigné
+        if request.user.role == 'commercial':
+            data['commercial'] = request.user.id
+        s = VenteSerializer(data=data)
         if s.is_valid():
             s.save()
             return Response(s.data, status=201)
@@ -346,4 +356,66 @@ class PrevisionHistoriqueView(APIView):
             }
             for p in previsions
         ]
-        return Response(data)         
+        return Response(data)  
+
+class UserListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Seul le superadmin voit tous les users
+        if request.user.role != 'superadmin':
+            return Response({'erreur': 'Accès refusé'}, status=403)
+        users = User.objects.all().order_by('-date_joined')
+        return Response(UserCreateSerializer(users, many=True).data)
+
+    def post(self, request):
+        if request.user.role != 'superadmin':
+            return Response({'erreur': 'Accès refusé'}, status=403)
+        s = UserCreateSerializer(data=request.data)
+        if s.is_valid():
+            s.save()
+            return Response(s.data, status=201)
+        return Response(s.errors, status=400)
+
+
+class UserDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, pk):
+        try:
+            return User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return None
+
+    def put(self, request, pk):
+        if request.user.role != 'superadmin':
+            return Response({'erreur': 'Accès refusé'}, status=403)
+        u = self.get_object(pk)
+        if not u:
+            return Response({'erreur': 'Utilisateur non trouvé'}, status=404)
+        s = UserCreateSerializer(u, data=request.data, partial=True)
+        if s.is_valid():
+            s.save()
+            return Response(s.data)
+        return Response(s.errors, status=400)
+
+    def delete(self, request, pk):
+        if request.user.role != 'superadmin':
+            return Response({'erreur': 'Accès refusé'}, status=403)
+        u = self.get_object(pk)
+        if not u:
+            return Response({'erreur': 'Utilisateur non trouvé'}, status=404)
+        if u.id == request.user.id:
+            return Response({'erreur': 'Vous ne pouvez pas vous supprimer vous-même'}, status=400)
+        u.delete()
+        return Response({'message': 'Utilisateur supprimé'}, status=204)   
+
+class ExportPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        buffer = generer_rapport_pdf()
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="rapport_previsions_{date.today()}.pdf"'
+        return response    
+     

@@ -9,6 +9,7 @@ from .views import (
     VenteListView, VenteDetailView,
     ImportVentesView,
     PrevisionView, PrevisionHistoriqueView,
+    UserListView, UserDetailView, ExportPDFView,
 )
 
 urlpatterns = [
@@ -36,4 +37,9 @@ urlpatterns = [
 
     path('previsions/generer/',     PrevisionView.as_view()),
     path('previsions/historique/',  PrevisionHistoriqueView.as_view()),
+
+    path('users/',          UserListView.as_view()),
+    path('users/<int:pk>/', UserDetailView.as_view()),
+
+    path('rapports/export-pdf/', ExportPDFView.as_view()),
 ]
