@@ -19,8 +19,9 @@ import pandas as pd
 from rest_framework import status
 from .services.prevision import generer_prevision
 from django.http import HttpResponse
-from .services.rapport import generer_rapport_pdf
+
 from datetime import date
+from .services.rapport import generer_rapport_pdf, generer_rapport_produit_pdf
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -60,11 +61,12 @@ class MeView(APIView):
     
 
 
+from django.utils import timezone
+
 class DashboardKPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Filtrer selon le rôle
         if request.user.role == 'commercial':
             ventes_qs = Vente.objects.filter(commercial=request.user)
         else:
@@ -73,23 +75,47 @@ class DashboardKPIView(APIView):
         ca_total  = ventes_qs.aggregate(total=Sum('chiffre_affaires'))['total'] or 0
         nb_ventes = ventes_qs.count()
 
+        if request.user.role == 'commercial':
+            # Stats personnelles pour le commercial
+            produit_favori = (
+                ventes_qs.values('produit__nom')
+                .annotate(ca=Sum('chiffre_affaires'))
+                .order_by('-ca').first()
+            )
+
+            today = timezone.now().date()
+            ventes_mois = ventes_qs.filter(
+                date_vente__year=today.year,
+                date_vente__month=today.month
+            )
+            ca_mois  = ventes_mois.aggregate(total=Sum('chiffre_affaires'))['total'] or 0
+            nb_mois  = ventes_mois.count()
+
+            return Response({
+                'ca_total':         round(ca_total, 2),
+                'nb_ventes':        nb_ventes,
+                'produit_favori':   produit_favori['produit__nom'] if produit_favori else 'N/A',
+                'ca_mois':          round(ca_mois, 2),
+                'nb_ventes_mois':   nb_mois,
+            })
+
+        # Manager / Superadmin — stats globales
         meilleur_produit = (
             ventes_qs.values('produit__nom')
             .annotate(ca=Sum('chiffre_affaires'))
             .order_by('-ca').first()
         )
-
         meilleur_commercial = (
             Vente.objects.values('commercial__username')
             .annotate(ca=Sum('chiffre_affaires'))
             .order_by('-ca').first()
-        ) if request.user.role != 'commercial' else None
+        )
 
         return Response({
-            'ca_total':           round(ca_total, 2),
-            'nb_ventes':          nb_ventes,
-            'meilleur_produit':   meilleur_produit['produit__nom'] if meilleur_produit else 'N/A',
-            'meilleur_commercial': meilleur_commercial['commercial__username'] if meilleur_commercial else request.user.username,
+            'ca_total':            round(ca_total, 2),
+            'nb_ventes':           nb_ventes,
+            'meilleur_produit':    meilleur_produit['produit__nom'] if meilleur_produit else 'N/A',
+            'meilleur_commercial': meilleur_commercial['commercial__username'] if meilleur_commercial else 'N/A',
         })
 
 
@@ -414,8 +440,16 @@ class ExportPDFView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        buffer = generer_rapport_pdf()
+        produit_id = request.query_params.get('produit_id')
+
+        if produit_id:
+            buffer = generer_rapport_produit_pdf(produit_id)
+            filename = f"rapport_produit_{produit_id}_{date.today()}.pdf"
+        else:
+            buffer = generer_rapport_pdf()
+            filename = f"rapport_global_{date.today()}.pdf"
+
         response = HttpResponse(buffer, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="rapport_previsions_{date.today()}.pdf"'
-        return response    
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
      
