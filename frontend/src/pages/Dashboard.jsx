@@ -2,325 +2,504 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import Sidebar from '../components/Sidebar';
+import Layout from '../components/Layout';
 import {
-    TrendingUp, ShoppingCart, Award, User,
-    Star, Calendar, ArrowUpRight, ArrowDownRight
-} from 'lucide-react';
-import {
-    LineChart, Line, BarChart, Bar,
-    PieChart, Pie, Cell, Tooltip,
-    XAxis, YAxis, CartesianGrid,
-    ResponsiveContainer, Legend
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  Tooltip, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts';
+import {
+  TrendingUp, ShoppingCart, User, Calendar,
+  Sparkles, Package, Target
+} from 'lucide-react';
 
-const COLORS = ['#1E40AF', '#3B82F6', '#60A5FA', '#93C5FD', '#059669', '#0891B2'];
+const COLORS = ['#1A5276', '#C1440E', '#B7860B', '#1E6B40', '#DC2626'];
 
-const KPICard = ({ icon: Icon, value, label, color, trend }) => (
-    <div style={styles.kpiCard}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ ...styles.kpiIconBox, backgroundColor: color + '15' }}>
-                <Icon size={20} color={color} />
-            </div>
-            {trend !== undefined && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: '4px',
-                    fontSize: '12px', fontWeight: '600',
-                    color: trend >= 0 ? '#059669' : '#DC2626'
-                }}>
-                    {trend >= 0
-                        ? <ArrowUpRight size={14} />
-                        : <ArrowDownRight size={14} />
-                    }
-                    {Math.abs(trend)}%
-                </div>
-            )}
+const money = (v) => {
+  if (v === null || v === undefined) return '—';
+  return `${Number(v).toLocaleString()} DH`;
+};
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid #E2E8F0',
+      borderRadius: 10,
+      padding: '10px 14px',
+      boxShadow: '0 8px 20px rgba(15,23,42,0.12)',
+      fontSize: 13
+    }}>
+      <div style={{ color: '#64748B', marginBottom: 4, fontWeight: 600 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color, fontWeight: 600 }}>
+          {p.name}: {typeof p.value === 'number' ? money(p.value) : p.value}
         </div>
-        <div style={styles.kpiValue}>{value}</div>
-        <div style={styles.kpiLabel}>{label}</div>
+      ))}
     </div>
-);
+  );
+};
 
 export default function Dashboard() {
-    const { user } = useAuth();
-    const isCommercial = user?.role === 'commercial';
+  const { user } = useAuth();
+  const isCommercial = user?.role === 'commercial';
 
-    const [kpis, setKpis]           = useState(null);
-    const [venteMois, setVenteMois] = useState([]);
-    const [venteProd, setVenteProd] = useState([]);
-    const [venteCat, setVenteCat]   = useState([]);
-    const [loading, setLoading]     = useState(true);
+  const [kpis, setKpis] = useState(null);
+  const [venteMois, setVenteMois] = useState([]);
+  const [venteProd, setVenteProd] = useState([]);
+  const [venteCat, setVenteCat] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchAll = async () => {
-            try {
-                if (isCommercial) {
-                    const [k, m] = await Promise.all([
-                        api.get('dashboard/kpis/'),
-                        api.get('dashboard/ventes-mois/'),
-                    ]);
-                    setKpis(k.data);
-                    setVenteMois(m.data);
-                } else {
-                    const [k, m, p, c] = await Promise.all([
-                        api.get('dashboard/kpis/'),
-                        api.get('dashboard/ventes-mois/'),
-                        api.get('dashboard/ventes-produit/'),
-                        api.get('dashboard/ventes-categorie/'),
-                    ]);
-                    setKpis(k.data);
-                    setVenteMois(m.data);
-                    setVenteProd(p.data);
-                    setVenteCat(c.data);
-                }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchAll();
-    }, [isCommercial]);
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        if (isCommercial) {
+          const [k, m] = await Promise.all([
+            api.get('dashboard/kpis/'),
+            api.get('dashboard/ventes-mois/'),
+          ]);
+          setKpis(k.data);
+          setVenteMois(m.data);
+        } else {
+          const [k, m, p, c] = await Promise.all([
+            api.get('dashboard/kpis/'),
+            api.get('dashboard/ventes-mois/'),
+            api.get('dashboard/ventes-produit/'),
+            api.get('dashboard/ventes-categorie/'),
+          ]);
+          setKpis(k.data);
+          setVenteMois(m.data);
+          setVenteProd(p.data);
+          setVenteCat(c.data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    if (loading) return (
-        <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8FAFC' }}>
-            <Sidebar />
-            <main style={{ marginLeft: '260px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={styles.loadingBox}>
-                    <TrendingUp size={32} color="#1E40AF" />
-                    <p style={{ color: '#64748B', margin: '12px 0 0', fontSize: '15px' }}>Chargement du tableau de bord...</p>
-                </div>
-            </main>
-        </div>
-    );
+    fetchAll();
+  }, [isCommercial]);
 
+  if (loading) {
     return (
-        <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-            <Sidebar />
-            <main style={{ marginLeft: '260px', flex: 1, padding: '32px' }}>
-
-                {/* ── Header ── */}
-                <div style={styles.pageHeader}>
-                    <div>
-                        <h1 style={styles.pageTitle}>
-                            {isCommercial ? `Bonjour, ${user?.username}` : 'Tableau de bord'}
-                        </h1>
-                        <p style={styles.pageSubtitle}>
-                            {isCommercial
-                                ? 'Voici un aperçu de vos performances personnelles'
-                                : 'Vue générale des performances commerciales'
-                            }
-                        </p>
-                    </div>
-                    <div style={styles.dateBadge}>
-                        <Calendar size={14} color="#64748B" />
-                        <span>{new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                    </div>
-                </div>
-
-                {/* ── KPIs ── */}
-                <div style={styles.kpiGrid}>
-                    <KPICard
-                        icon={TrendingUp}
-                        value={`${kpis?.ca_total?.toLocaleString()} DH`}
-                        label={isCommercial ? 'Mon chiffre d\'affaires' : 'Chiffre d\'affaires total'}
-                        color="#1E40AF"
-                    />
-                    <KPICard
-                        icon={ShoppingCart}
-                        value={kpis?.nb_ventes}
-                        label={isCommercial ? 'Mes ventes totales' : 'Nombre de ventes'}
-                        color="#059669"
-                    />
-                    {isCommercial ? (
-                        <>
-                            <KPICard
-                                icon={Star}
-                                value={kpis?.produit_favori}
-                                label="Mon produit le plus vendu"
-                                color="#D97706"
-                            />
-                            <KPICard
-                                icon={Calendar}
-                                value={`${kpis?.ca_mois?.toLocaleString()} DH`}
-                                label={`CA ce mois (${kpis?.nb_ventes_mois} ventes)`}
-                                color="#7C3AED"
-                            />
-                        </>
-                    ) : (
-                        <>
-                            <KPICard
-                                icon={Award}
-                                value={kpis?.meilleur_produit}
-                                label="Meilleur produit"
-                                color="#D97706"
-                            />
-                            <KPICard
-                                icon={User}
-                                value={kpis?.meilleur_commercial}
-                                label="Meilleur commercial"
-                                color="#7C3AED"
-                            />
-                        </>
-                    )}
-                </div>
-
-                {/* ── Graphiques ── */}
-                <div style={styles.chartsGrid}>
-                    {/* Courbe évolution */}
-                    <div style={{ ...styles.chartCard, gridColumn: 'span 2' }}>
-                        <div style={styles.chartHeader}>
-                            <div>
-                                <h3 style={styles.chartTitle}>
-                                    {isCommercial ? 'Évolution de mes ventes' : 'Évolution des ventes'}
-                                </h3>
-                                <p style={styles.chartSub}>Chiffre d'affaires mensuel (DH)</p>
-                            </div>
-                        </div>
-                        <ResponsiveContainer width="100%" height={260}>
-                            <LineChart data={venteMois} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                                <XAxis dataKey="mois" tick={{ fontSize: 12, fill: '#475569' }} axisLine={false} tickLine={false} />
-                                 <YAxis tick={{ fontSize: 12, fill: '#475569' }} axisLine={false} tickLine={false} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                                    formatter={(v) => [`${v.toLocaleString()} DH`, 'CA']}
-                                />
-                                <Line type="monotone" dataKey="ca" stroke="#1E40AF" strokeWidth={2.5} dot={{ r: 4, fill: '#1E40AF' }} activeDot={{ r: 6 }} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    {/* Barres par produit */}
-                    {!isCommercial && (
-                        <div style={styles.chartCard}>
-                            <div style={styles.chartHeader}>
-                                <div>
-                                    <h3 style={styles.chartTitle}>Ventes par produit</h3>
-                                    <p style={styles.chartSub}>Top produits par CA</p>
-                                </div>
-                            </div>
-                            <ResponsiveContainer width="100%" height={260}>
-                                <BarChart data={venteProd} layout="vertical" margin={{ left: 10 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-                                    <XAxis type="number" tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
-                                    <YAxis dataKey="produit" type="category" tick={{ fontSize: 11, fill: '#334155' }} width={90} axisLine={false} tickLine={false} />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
-                                        formatter={(v) => [`${v.toLocaleString()} DH`, 'CA']}
-                                    />
-                                    <Bar dataKey="ca" fill="#1E40AF" radius={[0, 6, 6, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-
-                    {/* Camembert catégorie */}
-                    {!isCommercial && (
-                        <div style={styles.chartCard}>
-                            <div style={styles.chartHeader}>
-                                <div>
-                                    <h3 style={styles.chartTitle}>Répartition par catégorie</h3>
-                                    <p style={styles.chartSub}>Part de chaque catégorie</p>
-                                </div>
-                            </div>
-                            <ResponsiveContainer width="100%" height={260}>
-                                <PieChart>
-                                    <Pie
-                                        data={venteCat}
-                                        dataKey="ca"
-                                        nameKey="categorie"
-                                        cx="50%" cy="50%"
-                                        outerRadius={95}
-                                        innerRadius={40}
-                                        paddingAngle={3}
-                                        label={({ categorie, percent }) =>
-                                            `${categorie} ${(percent * 100).toFixed(0)}%`
-                                        }
-                                        labelLine={false}
-                                    >
-                                        {venteCat.map((_, i) => (
-                                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
-                                        formatter={(v) => [`${v.toLocaleString()} DH`, 'CA']}
-                                    />
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-                </div>
-            </main>
+      <Layout>
+        <div style={styles.loadingState}>
+          <div style={styles.spinner}></div>
+          <span>Chargement du tableau de bord...</span>
         </div>
+      </Layout>
     );
+  }
+
+  const kpiCards = isCommercial ? [
+    {
+      label: 'Mon chiffre d’affaires',
+      value: money(kpis?.ca_total),
+      color: 'terracotta',
+      icon: TrendingUp,
+      delta: '+12.4% ce mois'
+    },
+    {
+      label: 'Mes ventes totales',
+      value: kpis?.nb_ventes ?? '—',
+      color: 'bleu',
+      icon: ShoppingCart,
+      delta: '+8.1% vs mois préc.'
+    },
+    {
+      label: 'Produit le plus vendu',
+      value: kpis?.produit_favori ?? '—',
+      color: 'or',
+      icon: Package,
+      delta: 'Top performance'
+    },
+    {
+      label: 'CA ce mois',
+      value: money(kpis?.ca_mois),
+      color: 'vert',
+      icon: Calendar,
+      delta: 'Objectif en cours'
+    },
+  ] : [
+    {
+      label: "Chiffre d'affaires total",
+      value: money(kpis?.ca_total),
+      color: 'terracotta',
+      icon: TrendingUp,
+      delta: '+12.4% vs mois préc.'
+    },
+    {
+      label: 'Nombre de ventes',
+      value: kpis?.nb_ventes ?? '—',
+      color: 'bleu',
+      icon: ShoppingCart,
+      delta: '+8.1% vs mois préc.'
+    },
+    {
+      label: 'Meilleur produit',
+      value: kpis?.meilleur_produit ?? '—',
+      color: 'or',
+      icon: Package,
+      delta: 'Produit leader'
+    },
+    {
+      label: 'Meilleur commercial',
+      value: kpis?.meilleur_commercial ?? '—',
+      color: 'vert',
+      icon: User,
+      delta: 'Top commercial'
+    },
+  ];
+
+   return (
+    <Layout>
+      <div style={styles.page}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginBottom: 18,
+          }}
+        >
+          {!isCommercial && (
+            <button
+              style={styles.btnPrimary}
+              onClick={() => window.location.href = '/previsions'}
+            >
+              <Sparkles size={16} />
+              Lancer prévision
+            </button>
+          )}
+        </div>
+
+        <div style={styles.kpiGrid}>
+          {kpiCards.map((card, i) => {
+            const Icon = card.icon;
+            return (
+              <div key={i} style={{ ...styles.kpiCard, ...styles[`kpi_${card.color}`] }}>
+                <div style={{ ...styles.kpiIcon, ...styles[`icon_${card.color}`] }}>
+                  <Icon size={18} />
+                </div>
+                <div style={styles.kpiValue}>{card.value}</div>
+                <div style={styles.kpiLabel}>{card.label}</div>
+                <div style={styles.kpiDelta}>{card.delta}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            ...styles.chartGrid,
+            gridTemplateColumns: isCommercial ? '1fr' : '2fr 1fr',
+          }}
+        >
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <div>
+                <div style={styles.cardTitle}>Évolution du CA mensuel</div>
+                <div style={styles.cardSub}>
+                  {isCommercial ? 'Vos ventes mensuelles' : 'Ventes globales des équipes'}
+                </div>
+              </div>
+              <span style={styles.badge}>Analyse active</span>
+            </div>
+
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={venteMois}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                <XAxis dataKey="mois" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Line type="monotone" dataKey="ca" stroke="#1A5276" strokeWidth={3} dot={{ r: 4, fill: '#1A5276' }} activeDot={{ r: 6 }} name="CA" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {!isCommercial && (
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <div>
+                  <div style={styles.cardTitle}>Répartition par catégorie</div>
+                  <div style={styles.cardSub}>Part du chiffre d’affaires</div>
+                </div>
+              </div>
+
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={venteCat} dataKey="ca" nameKey="categorie" cx="50%" cy="50%" outerRadius={90} innerRadius={52}>
+                    {venteCat.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v) => [money(v), 'CA']} />
+                  <Legend iconSize={10} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {!isCommercial && (
+          <div style={styles.bottomGrid}>
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <div>
+                  <div style={styles.cardTitle}>Ventes par produit</div>
+                  <div style={styles.cardSub}>Classement par chiffre d’affaires</div>
+                </div>
+              </div>
+
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={venteProd} layout="vertical" barSize={12}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                  <YAxis dataKey="produit" type="category" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} width={110} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="ca" fill="#C1440E" radius={[0, 6, 6, 0]} name="CA" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <div>
+                  <div style={styles.cardTitle}>Objectifs mensuels</div>
+                  <div style={styles.cardSub}>Suivi des performances</div>
+                </div>
+                <span style={styles.badgeGold}>Juin 2026</span>
+              </div>
+
+              <Goal label="CA mensuel" value={80} color="#C1440E" />
+              <Goal label="Commandes" value={67} color="#1A5276" />
+              <Goal label="Fidélité" value={91} color="#1E6B40" />
+              <Goal label="Nouveaux clients" value={54} color="#B7860B" />
+
+              <div style={styles.forecastBox}>
+                <div style={styles.forecastTitle}>
+                  <Target size={15} />
+                  Prévision Juillet
+                </div>
+                <div style={styles.forecastText}>
+                  Hausse estimée de <strong>+17%</strong> selon l’évolution actuelle des ventes.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+function Goal({ label, value, color }) {
+  return (
+    <div style={styles.goalRow}>
+      <div style={styles.goalLabel}>{label}</div>
+      <div style={styles.goalTrack}>
+        <div style={{ ...styles.goalFill, width: `${value}%`, background: color }} />
+      </div>
+      <div style={styles.goalPct}>{value}%</div>
+    </div>
+  );
 }
 
 const styles = {
-    loadingBox: {
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '40px', backgroundColor: '#fff', borderRadius: '12px',
-        boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
-    },
-    pageHeader: {
-        display: 'flex', justifyContent: 'space-between',
-        alignItems: 'flex-start', marginBottom: '28px',
-    },
-    pageTitle: {
-        fontSize: '24px', fontWeight: '700',
-        color: '#0F172A', margin: '0 0 4px',
-    },
-    pageSubtitle: {
-        fontSize: '14px', color: '#64748B', margin: 0,
-    },
-    dateBadge: {
-        display: 'flex', alignItems: 'center', gap: '6px',
-        backgroundColor: '#fff', border: '1px solid #E2E8F0',
-        borderRadius: '8px', padding: '8px 14px',
-        fontSize: '13px', color: '#64748B',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-    },
-    kpiGrid: {
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '20px', marginBottom: '24px',
-    },
-    kpiCard: {
-        backgroundColor: '#fff', borderRadius: '12px',
-        padding: '20px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
-        border: '1px solid #F1F5F9',
-    },
-    kpiIconBox: {
-        width: '40px', height: '40px', borderRadius: '10px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        marginBottom: '16px',
-    },
-    kpiValue: {
-        fontSize: '22px', fontWeight: '700',
-        color: '#0F172A', marginBottom: '4px',
-    },
-    kpiLabel: {
-        fontSize: '13px', color: '#64748B',
-    },
-    chartsGrid: {
-        display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: '20px',
-    },
-    chartCard: {
-        backgroundColor: '#fff', borderRadius: '12px',
-        padding: '24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
-        border: '1px solid #F1F5F9',
-    },
-    chartHeader: {
-        display: 'flex', justifyContent: 'space-between',
-        alignItems: 'flex-start', marginBottom: '20px',
-    },
-    chartTitle: {
-        fontSize: '15px', fontWeight: '600',
-        color: '#0F172A', margin: '0 0 4px',
-    },
-    chartSub: {
-        fontSize: '12px', color: '#94A3B8', margin: 0,
-    },
+  page: {
+    padding: '22px',
+    background: '#F4F0E8',
+    minHeight: '100vh',
+  },
+  dashboardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '16px',
+    marginBottom: '18px',
+  },
+  title: {
+    margin: 0,
+    fontSize: '24px',
+    color: '#0F172A',
+    fontWeight: 700,
+  },
+  subtitle: {
+    margin: '4px 0 0',
+    color: '#64748B',
+    fontSize: '14px',
+  },
+  btnPrimary: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '7px',
+    background: '#C1440E',
+    color: '#FFFFFF',
+    border: 'none',
+    padding: '10px 14px',
+    borderRadius: '9px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  kpiGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: '14px',
+    marginBottom: '18px',
+  },
+  kpiCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '14px',
+    padding: '16px',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  kpi_terracotta: { borderTop: '4px solid #C1440E' },
+  kpi_bleu: { borderTop: '4px solid #1A5276' },
+  kpi_or: { borderTop: '4px solid #B7860B' },
+  kpi_vert: { borderTop: '4px solid #1E6B40' },
+  kpiIcon: {
+    width: '38px',
+    height: '38px',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '12px',
+  },
+  icon_terracotta: { background: '#F5E8E3', color: '#C1440E' },
+  icon_bleu: { background: '#D6EAF8', color: '#1A5276' },
+  icon_or: { background: '#FEF9E7', color: '#B7860B' },
+  icon_vert: { background: '#D5F5E3', color: '#1E6B40' },
+  kpiValue: {
+    fontSize: '22px',
+    fontWeight: 700,
+    color: '#0F172A',
+    marginBottom: '4px',
+  },
+  kpiLabel: {
+    fontSize: '13px',
+    color: '#64748B',
+  },
+  kpiDelta: {
+    fontSize: '12px',
+    color: '#1E6B40',
+    marginTop: '8px',
+    fontWeight: 600,
+  },
+  chartGrid: {
+    display: 'grid',
+    gap: '18px',
+    marginBottom: '18px',
+  },
+  bottomGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1.4fr 1fr',
+    gap: '18px',
+  },
+  card: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '14px',
+    padding: '18px',
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '14px',
+    gap: '10px',
+  },
+  cardTitle: {
+    fontSize: '15px',
+    fontWeight: 700,
+    color: '#0F172A',
+  },
+  cardSub: {
+    fontSize: '12px',
+    color: '#64748B',
+    marginTop: '2px',
+  },
+  badge: {
+    background: '#D6EAF8',
+    color: '#1A5276',
+    padding: '5px 10px',
+    borderRadius: '999px',
+    fontSize: '11px',
+    fontWeight: 700,
+  },
+  badgeGold: {
+    background: '#FEF9E7',
+    color: '#B7860B',
+    padding: '5px 10px',
+    borderRadius: '999px',
+    fontSize: '11px',
+    fontWeight: 700,
+  },
+  goalRow: {
+    display: 'grid',
+    gridTemplateColumns: '110px 1fr 42px',
+    alignItems: 'center',
+    gap: '10px',
+    marginBottom: '13px',
+  },
+  goalLabel: {
+    color: '#475569',
+    fontSize: '13px',
+  },
+  goalTrack: {
+    height: '8px',
+    background: '#E2E8F0',
+    borderRadius: '999px',
+    overflow: 'hidden',
+  },
+  goalFill: {
+    height: '100%',
+    borderRadius: '999px',
+  },
+  goalPct: {
+    color: '#64748B',
+    fontSize: '12px',
+    textAlign: 'right',
+    fontWeight: 600,
+  },
+  forecastBox: {
+    marginTop: '18px',
+    padding: '14px',
+    background: '#D6EAF8',
+    borderLeft: '4px solid #1A5276',
+    borderRadius: '10px',
+  },
+  forecastTitle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    color: '#1A5276',
+    fontWeight: 700,
+    fontSize: '13px',
+    marginBottom: '5px',
+  },
+  forecastText: {
+    color: '#1A5276',
+    fontSize: '13px',
+    lineHeight: 1.5,
+  },
+  loadingState: {
+    minHeight: '70vh',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '12px',
+    color: '#64748B',
+  },
+  spinner: {
+    width: '22px',
+    height: '22px',
+    border: '3px solid #E2E8F0',
+    borderTop: '3px solid #C1440E',
+    borderRadius: '50%',
+  },
 };

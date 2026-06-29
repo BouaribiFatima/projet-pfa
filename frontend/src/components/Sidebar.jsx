@@ -1,248 +1,272 @@
-// src/components/Sidebar.jsx
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    LayoutDashboard, Package, ShoppingCart,
-    TrendingUp, FileText, Users, LogOut,
-    BarChart2
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  TrendingUp,
+  FileText,
+  Users,
+  LogOut,
+  ChevronRight,
+  X,
 } from 'lucide-react';
 
 const navItems = [
-    { path: '/dashboard',    label: 'Tableau de bord',    icon: LayoutDashboard,  roles: ['superadmin', 'manager', 'commercial'] },
-    { path: '/produits',     label: 'Produits',            icon: Package,          roles: ['superadmin', 'manager'] },
-    { path: '/ventes',       label: 'Ventes',              icon: ShoppingCart,     roles: ['superadmin', 'manager', 'commercial'] },
-    { path: '/previsions',   label: 'Prévisions',          icon: TrendingUp,       roles: ['superadmin', 'manager'] },
-    { path: '/rapports',     label: 'Rapports',            icon: FileText,         roles: ['superadmin', 'manager'] },
-    { path: '/utilisateurs', label: 'Utilisateurs',        icon: Users,            roles: ['superadmin'] },
+  { path: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard, roles: ['superadmin', 'manager', 'commercial'] },
+  { path: '/previsions', label: 'Prévisions', icon: TrendingUp, roles: ['superadmin', 'manager'] },
+  { path: '/ventes', label: 'Ventes', icon: ShoppingCart, roles: ['superadmin', 'manager', 'commercial'] },
+  { path: '/produits', label: 'Produits', icon: Package, roles: ['superadmin', 'manager'] },
+  { path: '/rapports', label: 'Rapports', icon: FileText, roles: ['superadmin', 'manager'] },
+  { path: '/utilisateurs', label: 'Utilisateurs', icon: Users, roles: ['superadmin'] },
 ];
+const GrowthLogo = ({ size = 24 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 32 32"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M5 25H27" />
+    <path d="M5 25V7" />
+    <path d="M8 21L14 15L19 17L27 8" />
+    <path d="M23 8H27V12" />
+  </svg>
+);
 
-export default function Sidebar() {
-    const { user, logout } = useAuth();
-    const navigate = useNavigate();
-    const location = useLocation();
+export default function Sidebar({ isOpen = false, onClose }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login');
-    };
+  const handleNavigate = (path) => {
+    navigate(path);
+    if (onClose) onClose();
+  };
 
-    const filtered = navItems.filter(item => item.roles.includes(user?.role));
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
-    return (
-        <aside style={styles.sidebar}>
-            {/* Logo */}
-            <div style={styles.logoContainer}>
-                <div style={styles.logoIcon}>
-                    <BarChart2 size={22} color="#FFFFFF" />
-                </div>
-                <div>
-                    <div style={styles.logoText}>PréviVentes</div>
-                    <div style={styles.logoSub}>Gestion des ventes</div>
-                </div>
-            </div>
+  const filteredItems = navItems.filter(item => item.roles.includes(user?.role));
 
-            {/* Séparateur */}
-            <div style={styles.divider} />
+  return (
+    <aside style={{
+      ...styles.sidebar,
+      ...(isOpen ? styles.sidebarOpen : {})
+    }}>
+      <div style={styles.logoArea}>
+        <div style={styles.logoIcon}>
+          <GrowthLogo size={22} />
+        </div>
 
-            {/* Navigation */}
-            <nav style={styles.nav}>
-                <p style={styles.navLabel}>MENU PRINCIPAL</p>
-                {filtered.map(item => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
-                    return (
-                        <div
-                            key={item.path}
-                            onClick={() => navigate(item.path)}
-                            style={isActive ? styles.navItemActive : styles.navItem}
-                            onMouseEnter={e => {
-                                if (!isActive) e.currentTarget.style.backgroundColor = '#1E293B';
-                            }}
-                            onMouseLeave={e => {
-                                if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                        >
-                            <Icon size={18} style={{ flexShrink: 0 }} />
-                            <span style={styles.navLabel2}>{item.label}</span>
-                            {isActive && <div style={styles.activeIndicator} />}
-                        </div>
-                    );
-                })}
-            </nav>
+        <div style={{ flex: 1 }}>
+          <div style={styles.logoText}>PréviVentes</div>
+          <div style={styles.logoSub}>Plateforme de prévision</div>
+        </div>
 
-            {/* Bottom — User info */}
-            <div style={styles.bottom}>
-                <div style={styles.divider} />
-                <div style={styles.userCard}>
-                    <div style={styles.avatar}>
-                        {user?.username?.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={styles.userInfo}>
-                        <div style={styles.userName}>{user?.username}</div>
-                        <div style={styles.userRole}>{user?.role}</div>
-                    </div>
-                </div>
-                <button onClick={handleLogout} style={styles.logoutBtn}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#1E293B'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <LogOut size={16} />
-                    <span>Déconnexion</span>
-                </button>
-            </div>
-        </aside>
-    );
+        <button style={styles.closeBtn} onClick={onClose}>
+          <X size={18} />
+        </button>
+      </div>
+
+      <nav style={styles.nav}>
+        <div style={styles.navSection}>
+          <div style={styles.navLabel}>Principal</div>
+
+          {filteredItems.map(item => {
+            const Icon = item.icon;
+            const active = location.pathname === item.path;
+
+            return (
+              <button
+                key={item.path}
+                onClick={() => handleNavigate(item.path)}
+                style={{
+                  ...styles.navItem,
+                  ...(active ? styles.navItemActive : {})
+                }}
+              >
+                <Icon size={18} />
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {active && <ChevronRight size={15} />}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      <div style={styles.footer}>
+        <div style={styles.userCard}>
+          <div style={styles.avatar}>
+            {user?.username?.charAt(0)?.toUpperCase() || 'U'}
+          </div>
+
+          <div style={styles.userInfo}>
+            <div style={styles.userName}>{user?.username || 'Utilisateur'}</div>
+            <div style={styles.userRole}>{user?.role || 'role'}</div>
+          </div>
+        </div>
+
+        <button style={styles.logoutBtn} onClick={handleLogout}>
+          <LogOut size={16} />
+          Déconnexion
+        </button>
+      </div>
+    </aside>
+  );
 }
 
 const styles = {
-    sidebar: {
-        width: '260px',
-        backgroundColor: '#0F172A',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'fixed',
-        height: '100vh',
-        top: 0,
-        left: 0,
-        zIndex: 100,
-        boxShadow: '4px 0 10px rgba(0,0,0,0.15)',
-    },
-    logoContainer: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '24px 20px',
-    },
-    logoIcon: {
-        width: '40px',
-        height: '40px',
-        backgroundColor: '#1E40AF',
-        borderRadius: '10px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-    },
-    logoText: {
-        color: '#FFFFFF',
-        fontSize: '16px',
-        fontWeight: '700',
-        letterSpacing: '0.3px',
-    },
-    logoSub: {
-        color: '#64748B',
-        fontSize: '11px',
-        marginTop: '1px',
-    },
-    divider: {
-        height: '1px',
-        backgroundColor: '#1E293B',
-        margin: '0 20px',
-    },
-    nav: {
-        flex: 1,
-        padding: '16px 12px',
-        overflowY: 'auto',
-    },
-    navLabel: {
-        color: '#475569',
-        fontSize: '10px',
-        fontWeight: '600',
-        letterSpacing: '1px',
-        padding: '8px 8px 12px',
-        margin: 0,
-    },
-    navItem: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '10px 12px',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        color: '#94A3B8',
-        fontSize: '14px',
-        fontWeight: '500',
-        marginBottom: '2px',
-        transition: 'all 0.15s',
-        position: 'relative',
-        backgroundColor: 'transparent',
-    },
-    navItemActive: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '10px 12px',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        color: '#FFFFFF',
-        fontSize: '14px',
-        fontWeight: '600',
-        marginBottom: '2px',
-        backgroundColor: '#1E40AF',
-        position: 'relative',
-    },
-    navLabel2: {
-        flex: 1,
-    },
-    activeIndicator: {
-        width: '6px',
-        height: '6px',
-        borderRadius: '50%',
-        backgroundColor: '#93C5FD',
-    },
-    bottom: {
-        padding: '0 0 16px',
-    },
-    userCard: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '16px 20px',
-    },
-    avatar: {
-        width: '36px',
-        height: '36px',
-        borderRadius: '8px',
-        backgroundColor: '#1E40AF',
-        color: '#FFFFFF',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: '700',
-        fontSize: '14px',
-        flexShrink: 0,
-    },
-    userInfo: {
-        flex: 1,
-        overflow: 'hidden',
-    },
-    userName: {
-        color: '#F1F5F9',
-        fontSize: '13px',
-        fontWeight: '600',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-    },
-    userRole: {
-        color: '#64748B',
-        fontSize: '11px',
-        marginTop: '1px',
-        textTransform: 'capitalize',
-    },
-    logoutBtn: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        width: 'calc(100% - 24px)',
-        margin: '0 12px',
-        padding: '10px 12px',
-        backgroundColor: 'transparent',
-        border: 'none',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        color: '#94A3B8',
-        fontSize: '14px',
-        fontWeight: '500',
-        transition: 'all 0.15s',
-    },
+  sidebar: {
+    width: 240,
+    height: '100vh',
+    background: '#1A5276',
+    color: '#FFFFFF',
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    zIndex: 100,
+    display: 'flex',
+    flexDirection: 'column',
+    boxShadow: '4px 0 18px rgba(15,23,42,0.18)',
+  },
+  sidebarOpen: {
+    transform: 'translateX(0)',
+  },
+  logoArea: {
+    padding: '22px 16px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    borderBottom: '1px solid rgba(255,255,255,0.12)',
+  },
+  logoIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    background: '#C1440E',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#FFFFFF',
+    boxShadow: '0 8px 18px rgba(193,68,14,0.35)',
+  },
+  logoText: {
+    fontSize: 18,
+    fontWeight: 800,
+    letterSpacing: 0.2,
+  },
+  logoSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.58)',
+    marginTop: 2,
+  },
+  closeBtn: {
+    display: 'none',
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    color: '#FFFFFF',
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    cursor: 'pointer',
+  },
+  nav: {
+    flex: 1,
+    padding: '16px 10px',
+    overflowY: 'auto',
+  },
+  navSection: {
+    marginBottom: 18,
+  },
+  navLabel: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    padding: '8px 10px',
+    fontWeight: 800,
+  },
+  navItem: {
+    width: '100%',
+    border: 'none',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.75)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 11,
+    padding: '11px 12px',
+    borderRadius: 10,
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 600,
+    marginBottom: 4,
+    transition: '0.18s ease',
+    textAlign: 'left',
+  },
+  navItemActive: {
+    background: '#C1440E',
+    color: '#FFFFFF',
+    boxShadow: '0 8px 18px rgba(193,68,14,0.28)',
+  },
+  footer: {
+    padding: 14,
+    borderTop: '1px solid rgba(255,255,255,0.12)',
+  },
+  userCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    background: 'rgba(255,255,255,0.08)',
+    marginBottom: 10,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: '50%',
+    background: '#C1440E',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 800,
+    color: '#FFFFFF',
+  },
+  userInfo: {
+    overflow: 'hidden',
+  },
+  userName: {
+    fontSize: 13,
+    fontWeight: 800,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  userRole: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.55)',
+    textTransform: 'capitalize',
+    marginTop: 2,
+  },
+  logoutBtn: {
+    width: '100%',
+    border: 'none',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.78)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '11px 12px',
+    borderRadius: 10,
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 600,
+  },
 };

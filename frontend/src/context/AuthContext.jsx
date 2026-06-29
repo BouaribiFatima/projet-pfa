@@ -1,4 +1,3 @@
-// src/context/AuthContext.jsx
 import { createContext, useContext, useState } from 'react';
 import api from '../services/api';
 
@@ -10,17 +9,36 @@ export function AuthProvider({ children }) {
     );
 
     const login = async (username, password) => {
-        const res = await api.post('auth/login/', { username, password });
+        const res = await api.post('/auth/login/', { username, password });
+
         localStorage.setItem('access_token', res.data.access);
-        localStorage.setItem('refresh_token', res.data.refresh);
-        localStorage.setItem('user', JSON.stringify(res.data.user));
-        setUser(res.data.user);
-        return res.data.user;
+
+        if (res.data.refresh) {
+            localStorage.setItem('refresh_token', res.data.refresh);
+        }
+
+        const currentUser = res.data.user || {
+            username,
+            role: username === 'admin' ? 'superadmin' : 'manager',
+        };
+
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        setUser(currentUser);
+
+        return currentUser;
     };
 
     const logout = async () => {
         const refresh = localStorage.getItem('refresh_token');
-        await api.post('auth/logout/', { refresh });
+
+        try {
+            if (refresh) {
+                await api.post('/auth/logout/', { refresh });
+            }
+        } catch (error) {
+            console.log('Erreur logout:', error);
+        }
+
         localStorage.clear();
         setUser(null);
     };

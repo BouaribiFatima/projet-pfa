@@ -1,415 +1,616 @@
 // src/pages/Previsions.jsx
 import { useEffect, useState } from 'react';
 import api from '../services/api';
-import Sidebar from '../components/Sidebar';
-import { theme } from '../styles/theme';
+import Layout from '../components/Layout';
 import {
-    LineChart, Line, XAxis, YAxis,
-    CartesianGrid, Tooltip, Legend,
-    ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import {
-    Sparkles, Settings, TrendingUp, Target,
-    Package, Database, FileDown, BarChart3,
-    ClipboardList, History, ArrowUp, ArrowDown
+  Brain, Play, Download, TrendingUp, Package,
+  BarChart3, History, ArrowUp, ArrowDown, Target
 } from 'lucide-react';
 
-export default function Previsions() {
-    const [produits, setProduits]       = useState([]);
-    const [produitId, setProduitId]     = useState('');
-    const [moisFutur, setMoisFutur]     = useState(3);
-    const [resultat, setResultat]       = useState(null);
-    const [historique, setHistorique]   = useState([]);
-    const [loading, setLoading]         = useState(false);
-    const [loadingHist, setLoadingHist] = useState(true);
-    const [exportingPDF, setExportingPDF] = useState(false);
+const money = (v) => {
+  if (v === null || v === undefined) return '—';
+  return `${Number(v).toLocaleString()} DH`;
+};
 
-    useEffect(() => {
-        api.get('produits/').then(r => setProduits(r.data));
-        fetchHistorique();
-    }, []);
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
 
-    const handleExportPDF = async () => {
-        if (!produitId) return;
-        setExportingPDF(true);
-        try {
-            const response = await api.get(`rapports/export-pdf/?produit_id=${produitId}`, {
-                responseType: 'blob',
-            });
-            const url  = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href  = url;
-            link.setAttribute('download', `rapport_produit_${produitId}_${new Date().toISOString().slice(0, 10)}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (e) {
-            alert('Erreur lors de l\'export PDF');
-        } finally {
-            setExportingPDF(false);
-        }
-    };
-
-    const fetchHistorique = async () => {
-        setLoadingHist(true);
-        const r = await api.get('previsions/historique/');
-        setHistorique(r.data);
-        setLoadingHist(false);
-    };
-
-    const handleGenerer = async () => {
-        if (!produitId) return alert('Choisissez un produit !');
-        setLoading(true);
-        setResultat(null);
-        try {
-            const r = await api.post('previsions/generer/', {
-                produit_id: produitId,
-                mois_futur: moisFutur,
-            });
-            setResultat(r.data);
-            fetchHistorique();
-        } catch (e) {
-            alert(e.response?.data?.erreur || 'Erreur lors de la prévision');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Fusionner historique + prévisions pour le graphique
-    const graphData = resultat ? [
-        ...resultat.historique.map(h => ({
-            date: h.date,
-            historique: h.ca,
-            prevision: null,
-        })),
-        ...resultat.previsions.map(p => ({
-            date: p.date,
-            historique: null,
-            prevision: p.ca,
-        }))
-    ] : [];
-
-    const scoreColor = resultat?.score_r2 >= 0.8 ? theme.colors.success
-                     : resultat?.score_r2 >= 0.5 ? theme.colors.warning
-                     : theme.colors.danger;
-
-    return (
-        <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: theme.colors.background, fontFamily: 'Segoe UI, sans-serif' }}>
-            <Sidebar />
-            <main style={{ marginLeft: '260px', flex: 1, padding: '32px' }}>
-
-                <h1 style={{
-                    fontSize: '24px', fontWeight: '700', color: theme.colors.textPrimary,
-                    margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: '10px'
-                }}>
-                    <Sparkles size={24} color={theme.colors.primary} />
-                    Prévisions
-                </h1>
-                <p style={{ color: theme.colors.textSecondary, fontSize: '14px', marginBottom: '28px' }}>
-                    Prévision des ventes par Random Forest
-                </p>
-
-                {/* ── Panneau de configuration ── */}
-                <div style={styles.configCard}>
-                    <h3 style={styles.configTitle}>
-                        <Settings size={16} color={theme.colors.primary} />
-                        Paramètres de prévision
-                    </h3>
-                    <div style={styles.configRow}>
-                        <div style={styles.configField}>
-                            <label style={styles.label}>Produit</label>
-                            <select style={styles.select} value={produitId}
-                                onChange={e => setProduitId(e.target.value)}
-                                onFocus={e => e.target.style.borderColor = theme.colors.primary}
-                                onBlur={e => e.target.style.borderColor = theme.colors.border}>
-                                <option value="">-- Choisir un produit --</option>
-                                {produits.map(p => (
-                                    <option key={p.id} value={p.id}>{p.nom}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div style={styles.configField}>
-                            <label style={styles.label}>Période de prévision</label>
-                            <select style={styles.select} value={moisFutur}
-                                onChange={e => setMoisFutur(parseInt(e.target.value))}
-                                onFocus={e => e.target.style.borderColor = theme.colors.primary}
-                                onBlur={e => e.target.style.borderColor = theme.colors.border}>
-                                <option value={1}>1 mois</option>
-                                <option value={3}>3 mois</option>
-                                <option value={6}>6 mois</option>
-                                <option value={12}>12 mois</option>
-                            </select>
-                        </div>
-
-                        <button onClick={handleGenerer} disabled={loading}
-                            style={loading ? styles.btnDisabled : styles.btn}
-                            onMouseEnter={e => { if (!loading) e.currentTarget.style.backgroundColor = theme.colors.primaryDark; }}
-                            onMouseLeave={e => { if (!loading) e.currentTarget.style.backgroundColor = theme.colors.primary; }}>
-                            <Sparkles size={16} />
-                            {loading ? 'Calcul en cours...' : 'Générer la prévision'}
-                        </button>
-                    </div>
-                </div>
-
-                {/* ── Résultats ── */}
-                {resultat && (
-                    <>
-                        {/* KPIs résultats */}
-                        <div style={styles.kpiGrid}>
-                            <div style={styles.kpiCard}>
-                                <div style={{ ...styles.kpiIconBox, backgroundColor: theme.colors.primaryLight }}>
-                                    <TrendingUp size={20} color={theme.colors.primary} />
-                                </div>
-                                <div style={styles.kpiValue}>
-                                    {resultat.total_prevu?.toLocaleString()} DH
-                                </div>
-                                <div style={styles.kpiLabel}>
-                                    CA prévu sur {resultat.mois_prevu} mois
-                                </div>
-                            </div>
-                            <div style={styles.kpiCard}>
-                                <div style={{ ...styles.kpiIconBox, backgroundColor: '#FEF3C7' }}>
-                                    <Target size={20} color={theme.colors.warning} />
-                                </div>
-                                <div style={{ ...styles.kpiValue, color: scoreColor }}>
-                                    {(resultat.score_r2 * 100).toFixed(1)}%
-                                </div>
-                                <div style={styles.kpiLabel}>Score de précision (R²)</div>
-                            </div>
-                            <div style={styles.kpiCard}>
-                                <div style={{ ...styles.kpiIconBox, backgroundColor: '#FCE7F3' }}>
-                                    <Package size={20} color={theme.colors.pink} />
-                                </div>
-                                <div style={styles.kpiValue}>{resultat.produit_nom}</div>
-                                <div style={styles.kpiLabel}>Produit analysé</div>
-                            </div>
-                            <div style={styles.kpiCard}>
-                                <div style={{ ...styles.kpiIconBox, backgroundColor: '#D1FAE5' }}>
-                                    <Database size={20} color={theme.colors.success} />
-                                </div>
-                                <div style={styles.kpiValue}>{resultat.nb_ventes}</div>
-                                <div style={styles.kpiLabel}>Ventes analysées</div>
-                            </div>
-                        </div>
-
-                        {/* Bouton Export PDF */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
-                            <button onClick={handleExportPDF} disabled={exportingPDF}
-                                style={exportingPDF ? styles.btnPdfDisabled : styles.btnPdf}
-                                onMouseEnter={e => { if (!exportingPDF) e.currentTarget.style.backgroundColor = '#047857'; }}
-                                onMouseLeave={e => { if (!exportingPDF) e.currentTarget.style.backgroundColor = theme.colors.success; }}>
-                                <FileDown size={16} />
-                                {exportingPDF ? 'Génération...' : 'Générer le rapport PDF de ce produit'}
-                            </button>
-                        </div>
-
-                        {/* Graphique */}
-                        <div style={styles.chartCard}>
-                            <h3 style={styles.chartTitle}>
-                                <BarChart3 size={16} color={theme.colors.primary} />
-                                Historique vs Prévision — {resultat.produit_nom}
-                            </h3>
-                            <ResponsiveContainer width="100%" height={350}>
-                                <LineChart data={graphData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke={theme.colors.background} />
-                                    <XAxis dataKey="date" tick={{ fontSize: 11 }}
-                                        tickFormatter={d => d?.slice(0, 7)} />
-                                    <YAxis tick={{ fontSize: 11 }} />
-                                    <Tooltip
-                                        formatter={(v, name) => [
-                                            v ? `${v.toLocaleString()} DH` : '-',
-                                            name === 'historique' ? 'Historique' : 'Prévision'
-                                        ]}
-                                    />
-                                    <Legend />
-                                    <Line type="monotone" dataKey="historique"
-                                        stroke={theme.colors.primary} strokeWidth={2}
-                                        dot={false} connectNulls={false} />
-                                    <Line type="monotone" dataKey="prevision"
-                                        stroke={theme.colors.success} strokeWidth={2}
-                                        strokeDasharray="6 3"
-                                        dot={{ r: 5, fill: theme.colors.success }}
-                                        connectNulls={false} />
-                                </LineChart>
-                            </ResponsiveContainer>
-                            <div style={styles.legend}>
-                                <span style={styles.legendItem}>
-                                    <span style={{ ...styles.legendDot, backgroundColor: theme.colors.primary }} />
-                                    Historique réel
-                                </span>
-                                <span style={styles.legendItem}>
-                                    <span style={{ ...styles.legendDot, backgroundColor: theme.colors.success }} />
-                                    Prévision Random Forest
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Tableau des prévisions */}
-                        <div style={styles.tableCard}>
-                            <h3 style={styles.chartTitle}>
-                                <ClipboardList size={16} color={theme.colors.primary} />
-                                Détail des prévisions
-                            </h3>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ backgroundColor: theme.colors.background }}>
-                                        <th style={styles.th}>Mois</th>
-                                        <th style={styles.th}>CA Prévu (DH)</th>
-                                        <th style={styles.th}>Variation</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {resultat.previsions.map((p, i) => {
-                                        const prev = i > 0 ? resultat.previsions[i - 1].ca : null;
-                                        const variation = prev ? ((p.ca - prev) / prev * 100).toFixed(1) : null;
-                                        return (
-                                            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? theme.colors.white : '#FAFBFC' }}>
-                                                <td style={styles.td}>{p.date?.slice(0, 7)}</td>
-                                                <td style={{ ...styles.td, fontWeight: '700', color: theme.colors.success }}>
-                                                    {p.ca.toLocaleString()} DH
-                                                </td>
-                                                <td style={styles.td}>
-                                                    {variation !== null && (
-                                                        <span style={{
-                                                            display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                                            color: variation >= 0 ? theme.colors.success : theme.colors.danger
-                                                        }}>
-                                                            {variation >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-                                                            {Math.abs(variation)}%
-                                                        </span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>
-                )}
-
-                {/* ── Historique des prévisions ── */}
-                <div style={{ ...styles.tableCard, marginTop: '24px' }}>
-                    <h3 style={styles.chartTitle}>
-                        <History size={16} color={theme.colors.primary} />
-                        Historique des prévisions générées
-                    </h3>
-                    {loadingHist ? (
-                        <p style={{ color: theme.colors.textSecondary }}>Chargement...</p>
-                    ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ backgroundColor: theme.colors.background }}>
-                                    <th style={styles.th}>Produit</th>
-                                    <th style={styles.th}>Période</th>
-                                    <th style={styles.th}>CA Prévu</th>
-                                    <th style={styles.th}>Score R²</th>
-                                    <th style={styles.th}>Généré le</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {historique.map((h, i) => (
-                                    <tr key={h.id} style={{ backgroundColor: i % 2 === 0 ? theme.colors.white : '#FAFBFC' }}>
-                                        <td style={{ ...styles.td, fontWeight: '600' }}>{h.produit_nom}</td>
-                                        <td style={styles.td}>{h.date_debut} → {h.date_fin}</td>
-                                        <td style={{ ...styles.td, color: theme.colors.success, fontWeight: '700' }}>
-                                            {h.valeur_prevue?.toLocaleString()} DH
-                                        </td>
-                                        <td style={styles.td}>
-                                            <span style={{
-                                                backgroundColor: h.score_r2 >= 0.8 ? '#D1FAE5' : '#FEF3C7',
-                                                color: h.score_r2 >= 0.8 ? theme.colors.success : theme.colors.warning,
-                                                padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600'
-                                            }}>
-                                                {(h.score_r2 * 100).toFixed(1)}%
-                                            </span>
-                                        </td>
-                                        <td style={styles.td}>
-                                            {new Date(h.created_at).toLocaleDateString('fr-FR')}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {historique.length === 0 && (
-                                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: theme.colors.textSecondary }}>
-                                        Aucune prévision générée pour l'instant.
-                                    </td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
-            </main>
+  return (
+    <div style={styles.tooltip}>
+      <div style={styles.tooltipLabel}>{label?.slice(0, 7)}</div>
+      {payload.map((p, i) => p.value !== null && (
+        <div key={i} style={{ color: p.color, fontWeight: 800 }}>
+          {p.name === 'historique' ? 'Historique' : 'Prévision'} : {money(p.value)}
         </div>
-    );
+      ))}
+    </div>
+  );
+};
+
+export default function Previsions() {
+  const [produits, setProduits] = useState([]);
+  const [produitId, setProduitId] = useState('');
+  const [moisFutur, setMoisFutur] = useState(3);
+  const [resultat, setResultat] = useState(null);
+  const [historique, setHistorique] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingHist, setLoadingHist] = useState(true);
+  const [exportingPDF, setExportingPDF] = useState(false);
+
+  useEffect(() => {
+    api.get('produits/').then(r => setProduits(r.data));
+    fetchHistorique();
+  }, []);
+
+  const fetchHistorique = async () => {
+    setLoadingHist(true);
+    try {
+      const r = await api.get('previsions/historique/');
+      setHistorique(r.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingHist(false);
+    }
+  };
+
+  const handleGenerer = async () => {
+    if (!produitId) {
+      alert('Choisissez un produit.');
+      return;
+    }
+
+    setLoading(true);
+    setResultat(null);
+
+    try {
+      const r = await api.post('previsions/generer/', {
+        produit_id: produitId,
+        mois_futur: moisFutur,
+      });
+
+      setResultat(r.data);
+      fetchHistorique();
+    } catch (e) {
+      alert(e.response?.data?.erreur || 'Erreur lors de la prévision.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!produitId) return;
+
+    setExportingPDF(true);
+
+    try {
+      const res = await api.get(`rapports/export-pdf/?produit_id=${produitId}`, {
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.setAttribute(
+        'download',
+        `rapport_prevision_produit_${produitId}_${new Date().toISOString().slice(0, 10)}.pdf`
+      );
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch {
+      alert("Erreur lors de l'export PDF.");
+    } finally {
+      setExportingPDF(false);
+    }
+  };
+
+  const firstPrevDate = resultat?.previsions?.[0]?.date;
+
+  const graphData = resultat ? [
+    ...resultat.historique.map(h => ({
+      date: h.date,
+      historique: h.ca,
+      prevision: null,
+    })),
+    ...resultat.previsions.map(p => ({
+      date: p.date,
+      historique: null,
+      prevision: p.ca,
+    })),
+  ] : [];
+
+  const score = resultat?.score_r2 || 0;
+  const scorePct = Math.round(score * 100);
+  const scoreColor = score >= 0.8 ? '#1E6B40' : score >= 0.5 ? '#B7860B' : '#DC2626';
+  const scoreLabel = score >= 0.8 ? 'Excellent' : score >= 0.5 ? 'Acceptable' : 'Faible';
+
+  return (
+    <Layout>
+      <div style={styles.page}>
+        <div style={styles.hero}>
+          <div>
+            <div style={styles.badge}>
+              <Brain size={15} />
+              Intelligence prédictive
+            </div>
+            <h1 style={styles.title}>Prévisions des ventes</h1>
+            <p style={styles.subtitle}>
+              Générez des prévisions du chiffre d’affaires par produit grâce au modèle Random Forest.
+            </p>
+          </div>
+        </div>
+
+        <div style={styles.configCard}>
+          <div style={styles.configHeader}>
+            <div>
+              <h2 style={styles.sectionTitle}>Paramètres de simulation</h2>
+              <p style={styles.sectionSub}>
+                Sélectionnez un produit et l’horizon de prévision souhaité.
+              </p>
+            </div>
+          </div>
+
+          <div style={styles.configGrid}>
+            <div>
+              <label style={styles.label}>Produit à analyser</label>
+              <select
+                style={styles.input}
+                value={produitId}
+                onChange={(e) => setProduitId(e.target.value)}
+              >
+                <option value="">Sélectionner un produit</option>
+                {produits.map(p => (
+                  <option key={p.id} value={p.id}>{p.nom}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={styles.label}>Horizon de prévision</label>
+              <select
+                style={styles.input}
+                value={moisFutur}
+                onChange={(e) => setMoisFutur(parseInt(e.target.value))}
+              >
+                <option value={1}>1 mois</option>
+                <option value={3}>3 mois</option>
+                <option value={6}>6 mois</option>
+                <option value={12}>12 mois</option>
+              </select>
+            </div>
+
+            <button style={styles.primaryBtn} onClick={handleGenerer} disabled={loading}>
+              <Play size={17} />
+              {loading ? 'Calcul en cours...' : 'Générer la prévision'}
+            </button>
+          </div>
+        </div>
+
+        {resultat && (
+          <>
+            <div style={styles.kpiGrid}>
+              <KpiCard
+                icon={TrendingUp}
+                label={`CA prévu sur ${resultat.mois_prevu} mois`}
+                value={money(resultat.total_prevu)}
+                color="#1E6B40"
+                bg="#D5F5E3"
+              />
+              <div style={styles.kpiCard}>
+                <div style={{ ...styles.kpiIcon, background: '#FEF9E7', color: scoreColor }}>
+                  <Target size={19} />
+                </div>
+                <div style={{ ...styles.kpiValue, color: scoreColor }}>{scorePct}%</div>
+                <div style={styles.kpiLabel}>Score de précision R² · {scoreLabel}</div>
+                <div style={styles.scoreTrack}>
+                  <div style={{ ...styles.scoreFill, width: `${scorePct}%`, background: scoreColor }} />
+                </div>
+              </div>
+              <KpiCard
+                icon={Package}
+                label="Produit analysé"
+                value={resultat.produit_nom}
+                color="#C1440E"
+                bg="#F5E8E3"
+              />
+              <KpiCard
+                icon={BarChart3}
+                label="Ventes analysées"
+                value={resultat.nb_ventes}
+                color="#1A5276"
+                bg="#D6EAF8"
+              />
+            </div>
+
+            <div style={styles.actionRow}>
+              <button style={styles.successBtn} onClick={handleExportPDF} disabled={exportingPDF}>
+                <Download size={17} />
+                {exportingPDF ? 'Génération...' : 'Exporter le rapport '}
+              </button>
+            </div>
+
+            <div style={styles.chartCard}>
+              <div style={styles.cardHeader}>
+                <div>
+                  <h2 style={styles.sectionTitle}>
+                    Historique vs Prévision — {resultat.produit_nom}
+                  </h2>
+                  <p style={styles.sectionSub}>
+                    La ligne bleue représente l’historique, la ligne verte représente la prévision.
+                  </p>
+                </div>
+              </div>
+
+              <ResponsiveContainer width="100%" height={330}>
+                <LineChart data={graphData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: '#64748B' }}
+                    tickFormatter={d => d?.slice(0, 7)}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#64748B' }}
+                    tickFormatter={v => `${(v / 1000).toFixed(0)}k`}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  {firstPrevDate && (
+                    <ReferenceLine
+                      x={firstPrevDate}
+                      stroke="#CBD5E1"
+                      strokeDasharray="4 3"
+                      label={{
+                        value: 'Début prévision',
+                        position: 'top',
+                        fontSize: 11,
+                        fill: '#64748B'
+                      }}
+                    />
+                  )}
+                  <Line
+                    type="monotone"
+                    dataKey="historique"
+                    stroke="#1A5276"
+                    strokeWidth={3}
+                    dot={false}
+                    connectNulls={false}
+                    name="historique"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="prevision"
+                    stroke="#1E6B40"
+                    strokeWidth={3}
+                    strokeDasharray="6 4"
+                    dot={{ r: 4, fill: '#1E6B40' }}
+                    connectNulls={false}
+                    name="prevision"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={styles.detailsGrid}>
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2 style={styles.sectionTitle}>Détail mensuel des prévisions</h2>
+                    <p style={styles.sectionSub}>Variation estimée mois par mois.</p>
+                  </div>
+                </div>
+
+                <div style={styles.tableWrapper}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>Mois</th>
+                        <th style={styles.th}>CA prévu</th>
+                        <th style={styles.th}>Variation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resultat.previsions.map((p, i) => {
+                        const prev = i > 0 ? resultat.previsions[i - 1].ca : null;
+                        const variation = prev ? ((p.ca - prev) / prev * 100).toFixed(1) : null;
+                        const up = parseFloat(variation) >= 0;
+
+                        return (
+                          <tr key={i} style={styles.tr}>
+                            <td style={styles.td}>{p.date?.slice(0, 7)}</td>
+                            <td style={styles.td}>
+                              <span style={styles.price}>{money(p.ca)}</span>
+                            </td>
+                            <td style={styles.td}>
+                              {variation === null ? '—' : (
+                                <span style={up ? styles.upBadge : styles.downBadge}>
+                                  {up ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                                  {Math.abs(variation)}%
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div style={styles.recoCard}>
+                <div style={styles.recoIcon}>
+                  <Brain size={24} />
+                </div>
+                <h2 style={styles.recoTitle}>Recommandation IA</h2>
+                <p style={styles.recoText}>
+                  Sur la base des tendances historiques, le produit sélectionné présente une
+                  prévision de <strong>{money(resultat.total_prevu)}</strong> sur les prochains
+                  <strong> {resultat.mois_prevu} mois</strong>. Le score R² indique une fiabilité
+                  <strong> {scoreLabel.toLowerCase()}</strong>.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div style={styles.historyCard}>
+          <div style={styles.cardHeader}>
+            <div style={styles.historyTitleWrap}>
+              <History size={20} />
+              <div>
+                <h2 style={styles.sectionTitle}>Historique des prévisions</h2>
+                <p style={styles.sectionSub}>Toutes les prévisions générées récemment.</p>
+              </div>
+            </div>
+          </div>
+
+          {loadingHist ? (
+            <div style={styles.loading}>Chargement de l’historique...</div>
+          ) : (
+            <div style={styles.tableWrapper}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Produit</th>
+                    <th style={styles.th}>Période</th>
+                    <th style={styles.th}>CA prévu</th>
+                    <th style={styles.th}>Score R²</th>
+                    <th style={styles.th}>Généré le</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {historique.map(h => (
+                    <tr key={h.id} style={styles.tr}>
+                      <td style={styles.tdStrong}>{h.produit_nom}</td>
+                      <td style={styles.tdMuted}>{h.date_debut} → {h.date_fin}</td>
+                      <td style={styles.td}>
+                        <span style={styles.price}>{money(h.valeur_prevue)}</span>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={styles.scoreBadge}>
+                          {(h.score_r2 * 100).toFixed(1)}%
+                        </span>
+                      </td>
+                      <td style={styles.tdMuted}>
+                        {h.created_at ? new Date(h.created_at).toLocaleDateString('fr-FR') : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {historique.length === 0 && (
+                <div style={styles.empty}>Aucune prévision générée pour l’instant.</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+function KpiCard({ icon: Icon, label, value, color, bg }) {
+  return (
+    <div style={styles.kpiCard}>
+      <div style={{ ...styles.kpiIcon, background: bg, color }}>
+        <Icon size={19} />
+      </div>
+      <div style={styles.kpiValue}>{value}</div>
+      <div style={styles.kpiLabel}>{label}</div>
+    </div>
+  );
 }
 
 const styles = {
-    configCard: {
-        backgroundColor: theme.colors.white, borderRadius: '12px', padding: '24px',
-        boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: '24px',
-    },
-    configTitle: {
-        fontSize: '16px', fontWeight: '700', color: theme.colors.textPrimary,
-        margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: '8px',
-    },
-    configRow: { display: 'flex', gap: '16px', alignItems: 'flex-end', flexWrap: 'wrap' },
-    configField: { flex: 1, minWidth: '200px' },
-    label: { display: 'block', fontSize: '13px', fontWeight: '600', color: theme.colors.textPrimary, marginBottom: '6px' },
-    select: {
-        width: '100%', padding: '10px', border: `1px solid ${theme.colors.border}`,
-        borderRadius: '8px', fontSize: '14px', outline: 'none',
-        transition: 'border-color 0.15s', color: theme.colors.textPrimary,
-        backgroundColor: theme.colors.white,
-    },
-    btn: {
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '10px 24px', backgroundColor: theme.colors.primary, color: theme.colors.white,
-        border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600',
-        fontSize: '14px', whiteSpace: 'nowrap', transition: 'background-color 0.15s',
-    },
-    btnDisabled: {
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '10px 24px', backgroundColor: '#A5B4D6', color: theme.colors.white,
-        border: 'none', borderRadius: '8px', cursor: 'not-allowed', fontWeight: '600', fontSize: '14px',
-    },
-    kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' },
-    kpiCard: { backgroundColor: theme.colors.white, borderRadius: '12px', padding: '20px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' },
-    kpiIconBox: {
-        width: '40px', height: '40px', borderRadius: '10px', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', marginBottom: '12px',
-    },
-    kpiValue: { fontSize: '20px', fontWeight: '700', color: theme.colors.textPrimary, marginBottom: '4px' },
-    kpiLabel: { fontSize: '12px', color: theme.colors.textSecondary },
-    chartCard: {
-        backgroundColor: theme.colors.white, borderRadius: '12px', padding: '24px',
-        boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: '24px',
-    },
-    chartTitle: {
-        fontSize: '15px', fontWeight: '700', color: theme.colors.textPrimary,
-        margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: '8px',
-    },
-    legend: { display: 'flex', gap: '24px', justifyContent: 'center', marginTop: '16px' },
-    legendItem: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: theme.colors.textPrimary },
-    legendDot: { width: '12px', height: '12px', borderRadius: '50%', display: 'inline-block' },
-    tableCard: { backgroundColor: theme.colors.white, borderRadius: '12px', padding: '24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' },
-    th: {
-        padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '600',
-        color: theme.colors.textPrimary, borderBottom: `1px solid ${theme.colors.border}`,
-    },
-    td: {
-        padding: '12px 16px', fontSize: '14px', color: theme.colors.textPrimary,
-        borderBottom: `1px solid ${theme.colors.background}`,
-    },
-    btnPdf: {
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '10px 20px', backgroundColor: theme.colors.success, color: theme.colors.white,
-        border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600',
-        fontSize: '14px', transition: 'background-color 0.15s',
-    },
-    btnPdfDisabled: {
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '10px 20px', backgroundColor: '#86EFAC', color: theme.colors.white,
-        border: 'none', borderRadius: '8px', cursor: 'not-allowed', fontWeight: '600', fontSize: '14px',
-    },
+  page: { padding: 22, background: '#F4F0E8', minHeight: '100vh' },
+  hero: {
+    background: 'linear-gradient(135deg, #1A5276, #123A55)',
+    color: '#FFFFFF',
+    borderRadius: 18,
+    padding: 24,
+    marginBottom: 18,
+  },
+  badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    padding: '6px 11px',
+    borderRadius: 999,
+    background: 'rgba(255,255,255,0.12)',
+    fontSize: 12,
+    fontWeight: 800,
+    marginBottom: 10,
+  },
+  title: { margin: 0, fontSize: 28, fontWeight: 900 },
+  subtitle: { margin: '7px 0 0', color: 'rgba(255,255,255,0.72)', fontSize: 14 },
+  configCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 18,
+  },
+  configHeader: { marginBottom: 16 },
+  sectionTitle: { margin: 0, fontSize: 18, fontWeight: 900, color: '#0F172A' },
+  sectionSub: { margin: '4px 0 0', color: '#64748B', fontSize: 13 },
+  configGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 14, alignItems: 'end' },
+  label: { display: 'block', marginBottom: 7, fontSize: 13, fontWeight: 800, color: '#334155' },
+  input: {
+    width: '100%',
+    height: 46,
+    border: '1px solid #CBD5E1',
+    borderRadius: 12,
+    padding: '0 13px',
+    fontSize: 14,
+    outline: 'none',
+    background: '#FFFFFF',
+  },
+  primaryBtn: {
+    height: 46,
+    border: 'none',
+    background: '#C1440E',
+    color: '#FFFFFF',
+    borderRadius: 12,
+    padding: '0 16px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    fontWeight: 900,
+    cursor: 'pointer',
+  },
+  successBtn: {
+    border: 'none',
+    background: '#1E6B40',
+    color: '#FFFFFF',
+    borderRadius: 12,
+    padding: '12px 16px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    fontWeight: 900,
+    cursor: 'pointer',
+  },
+  kpiGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: 14,
+    marginBottom: 18,
+  },
+  kpiCard: { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, padding: 16 },
+  kpiIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  kpiValue: { fontSize: 20, fontWeight: 900, color: '#0F172A' },
+  kpiLabel: { fontSize: 12, color: '#64748B', marginTop: 3 },
+  scoreTrack: { height: 7, background: '#E2E8F0', borderRadius: 999, overflow: 'hidden', marginTop: 10 },
+  scoreFill: { height: '100%', borderRadius: 999 },
+  actionRow: { display: 'flex', justifyContent: 'flex-end', marginBottom: 18 },
+  chartCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 18,
+  },
+  cardHeader: { marginBottom: 16 },
+  detailsGrid: { display: 'grid', gridTemplateColumns: '1.4fr 0.8fr', gap: 18, marginBottom: 18 },
+  card: { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 18, padding: 20 },
+  tableWrapper: { overflowX: 'auto' },
+  table: { width: '100%', borderCollapse: 'collapse' },
+  th: {
+    textAlign: 'left',
+    padding: '13px 14px',
+    background: '#F8FAFC',
+    color: '#64748B',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tr: { borderTop: '1px solid #E2E8F0' },
+  td: { padding: '14px', color: '#334155', fontSize: 14 },
+  tdStrong: { padding: '14px', color: '#0F172A', fontWeight: 900, fontSize: 14 },
+  tdMuted: { padding: '14px', color: '#64748B', fontSize: 13 },
+  price: { color: '#1E6B40', fontWeight: 900 },
+  upBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    background: '#D5F5E3',
+    color: '#1E6B40',
+    padding: '6px 9px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  downBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    background: '#FEE2E2',
+    color: '#DC2626',
+    padding: '6px 9px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  recoCard: {
+    background: 'linear-gradient(135deg, #1A5276, #123A55)',
+    color: '#FFFFFF',
+    borderRadius: 18,
+    padding: 22,
+  },
+  recoIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    background: 'rgba(255,255,255,0.12)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  recoTitle: { margin: 0, fontSize: 20, fontWeight: 900 },
+  recoText: { color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, fontSize: 14 },
+  historyCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: 18,
+    padding: 20,
+  },
+  historyTitleWrap: { display: 'flex', alignItems: 'center', gap: 10, color: '#1A5276' },
+  scoreBadge: {
+    background: '#D6EAF8',
+    color: '#1A5276',
+    padding: '6px 10px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  loading: { padding: 24, textAlign: 'center', color: '#64748B' },
+  empty: { padding: 24, textAlign: 'center', color: '#64748B' },
+  tooltip: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: 10,
+    padding: '10px 14px',
+    boxShadow: '0 12px 30px rgba(15,23,42,0.16)',
+    fontSize: 13,
+  },
+  tooltipLabel: { color: '#64748B', marginBottom: 6, fontWeight: 800 },
 };
